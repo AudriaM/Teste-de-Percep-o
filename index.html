@@ -69,7 +69,7 @@ function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math
 function save(){localStorage.setItem("testState",JSON.stringify(state))}
 function esc(s=""){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function progress(n){return `<div class="progress">Etapa ${n} de 6</div>`}
-function render(){save();({config:configPage,intro,profile,ready,view:viewFive,impression,semantic,compare,colors,done}[state.stage]||intro)()}
+function render(){save();({config:configPage,intro,profile,ready,view:viewFive,impression,semantic,compare,colors,finalReflection,done}[state.stage]||intro)()}
 
 function configPage(){
  app.innerHTML=`<h1>Configurar teste</h1><p class="intro">Insira as quatro imagens que serão avaliadas. Elas ficam salvas neste navegador para os próximos participantes.</p>
@@ -116,9 +116,8 @@ function viewFive(){
 function impression(){
  const id=state.order[state.index];app.innerHTML=`${progress(3)}<h2>Primeira impressão</h2>
  <div class="field"><label class="legend" for="first">Qual foi sua primeira impressão dessa interface?</label><textarea id="first"></textarea></div>
- <div class="field"><label class="legend" for="attention">Algum elemento chamou sua atenção imediatamente?</label><textarea id="attention"></textarea></div>
  <div class="actions"><button id="next">Continuar</button></div>`;
- document.getElementById("next").onclick=()=>{state.answers[id]=state.answers[id]||{};state.answers[id].first=document.getElementById("first").value.trim();state.answers[id].attention=document.getElementById("attention").value.trim();state.stage="semantic";render()}
+ document.getElementById("next").onclick=()=>{state.answers[id]=state.answers[id]||{};state.answers[id].first=document.getElementById("first").value.trim();state.stage="semantic";render()}
 }
 function semantic(){
  const id=state.order[state.index];app.innerHTML=`${progress(4)}<h2>Avaliação da interface</h2><img class="test-image" src="${images[id]}" alt="Interface em avaliação">
@@ -140,18 +139,34 @@ function compare(){
 }
 function colors(){
  let fs=["Ação principal","Navegação","Informação","Sucesso","Atenção / alerta","Erro","Elemento de destaque","Elemento decorativo","Não associo a nenhuma função","Outro"];
- app.innerHTML=`${progress(6)}<h2>Associação das cores</h2><p>Que função você esperaria que cada cor tivesse dentro de um sistema?</p><p class="small">Você pode selecionar mais de uma opção para cada cor.</p>
+ app.innerHTML=`${progress(6)}<h2>Associação das cores</h2><p>Que função você esperaria que cada cor tivesse dentro de um sistema?</p><p class="small">Você pode selecionar mais de uma opção para cada cor, até o máximo de 3.</p>
  ${IDS.map(id=>`<div class="field"><div class="swatch" style="background:${config.colors[id]}"></div><label class="legend">Cor ${id}</label><div class="options">${fs.map(v=>`<label class="option"><input type="checkbox" name="c${id}" value="${v}"> ${v}</label>`).join("")}</div><input id="other${id}" type="text" placeholder="Outra associação" style="display:none;margin-top:10px"></div>`).join("")}
  <div id="msg"></div><div class="actions"><button id="finish">Finalizar</button></div>`;
  IDS.forEach(id=>document.querySelectorAll(`[name=c${id}]`).forEach(x=>x.onchange=()=>{
+   const checked=[...document.querySelectorAll(`[name=c${id}]:checked`)];
+   if(checked.length>3){x.checked=false;document.getElementById("msg").innerHTML='<div class="notice">Selecione no máximo 3 opções para cada cor.</div>';}
+   else document.getElementById("msg").innerHTML="";
    const outro=[...document.querySelectorAll(`[name=c${id}]:checked`)].some(el=>el.value==="Outro");
    document.getElementById("other"+id).style.display=outro?"block":"none";
  }));
  document.getElementById("finish").onclick=()=>{let ok=true;IDS.forEach(id=>{
    let xs=[...document.querySelectorAll(`[name=c${id}]:checked`)];
-   if(!xs.length){ok=false;return}
+   if(!xs.length||xs.length>3){ok=false;return}
    state.associations[id]=xs.map(x=>x.value==="Outro"?(document.getElementById("other"+id).value.trim()||"Outro"):x.value);
- });if(!ok){document.getElementById("msg").innerHTML='<div class="notice">Selecione pelo menos uma associação para cada cor.</div>';return}state.completed=new Date().toISOString();state.stage="done";render()}
+ });if(!ok){document.getElementById("msg").innerHTML='<div class="notice">Selecione de 1 a 3 associações para cada cor.</div>';return}state.stage="finalReflection";render()}
+}
+function finalReflection(){
+ app.innerHTML=`${progress(6)}<h2>Uma última pergunta</h2>
+ <div class="field"><label class="legend">Pensando apenas nas cores que você viu, alguma delas parece inadequada ou estranha para ser utilizada como cor principal de interação em um sistema?</label>
+ <div class="options">${["Interface A","Interface B","Interface C","Interface D","Nenhuma"].map(v=>`<label class="option"><input type="radio" name="finalStrange" value="${v}"> ${v}</label>`).join("")}</div></div>
+ <div class="field"><label class="legend" for="finalWhy">Por quê?</label><textarea id="finalWhy" placeholder="Conte brevemente o que levou você a essa percepção."></textarea></div>
+ <div id="msg"></div><div class="actions"><button id="complete">Concluir teste</button></div>`;
+ document.getElementById("complete").onclick=()=>{
+  const choice=document.querySelector('[name=finalStrange]:checked');
+  if(!choice){document.getElementById("msg").innerHTML='<div class="notice">Selecione uma opção para continuar.</div>';return}
+  state.finalColorPerception={choice:choice.value,why:document.getElementById("finalWhy").value.trim()};
+  state.completed=new Date().toISOString();state.stage="done";render();
+ };
 }
 function done(){
  app.innerHTML=`${progress(6)}<h1>Obrigado pela participação!</h1><p class="intro">Suas respostas ajudarão a compreender como diferentes decisões visuais são percebidas em interfaces de sistemas educacionais.</p>
@@ -162,9 +177,11 @@ function done(){
 }
 function resultLines(){
  let lines=[["TESTE DE PERCEPÇÃO DE INTERFACE",""],["Resultado individual",""],["ID",state.id],["Data",new Date(state.completed||Date.now()).toLocaleString("pt-BR")],["Perfil",state.profile.role],["Ordem apresentada",state.order.join(" → ")]];
- IDS.forEach(id=>{let a=state.answers[id]||{},s=a.scales||{};lines.push(["",""],["INTERFACE "+id,""],["Primeira impressão",a.first||"—"],["Chamou atenção",a.attention||"—"]);SCALES.forEach(([l,r,k])=>lines.push([l+" / "+r,String(s[k]??"—")]))});
+ IDS.forEach(id=>{let a=state.answers[id]||{},s=a.scales||{};lines.push(["",""],["INTERFACE "+id,""],["Primeira impressão",a.first||"—"]);SCALES.forEach(([l,r,k])=>lines.push([l+" / "+r,String(s[k]??"—")]))});
  lines.push(["",""],["COMPARAÇÃO FINAL",""],["Esperada no uso diário",state.comparison.daily],["Adequada a diferentes instituições",state.comparison.multi],["Estranheza",state.comparison.strange],["Motivo",state.comparison.why||"—"],["Elemento fora de lugar",state.comparison.out||"—"],["",""],["ASSOCIAÇÃO DAS CORES",""]);
- IDS.forEach(id=>lines.push([`Cor ${id} (${config.colors[id]})`,(Array.isArray(state.associations[id])?state.associations[id].join(", "):(state.associations[id]||"—"))]));return lines
+ IDS.forEach(id=>lines.push([`Cor ${id} (${config.colors[id]})`,(Array.isArray(state.associations[id])?state.associations[id].join(", "):(state.associations[id]||"—"))]));
+ lines.push(["",""],["PERCEPÇÃO FINAL DAS CORES",""],["Cor considerada inadequada ou estranha",state.finalColorPerception?.choice||"—"],["Por quê?",state.finalColorPerception?.why||"—"]);
+ return lines
 }
 function base(){let d=new Date();return `teste-interface-${state.id}-${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`}
 function dl(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}

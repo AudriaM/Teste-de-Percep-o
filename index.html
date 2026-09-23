@@ -33,6 +33,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.filebtn:focus-w
 .choice-card img{width:100%;height:180px;object-fit:contain}.swatch{height:90px;border:1px solid #aaa;border-radius:8px;margin-bottom:12px}
 .small{font-size:12px;color:#666}.hidden{display:none}
 @media(max-width:640px){main{padding:14px}.panel{padding:24px 18px}.config-grid,.grid4{grid-template-columns:1fr}.choice-card img{height:auto}}
+.final-card{display:block}
+.final-card img{display:block;width:100%;height:150px;object-fit:contain;background:#fafafa;border-radius:6px}
+.final-choice{display:flex;align-items:center;gap:8px;margin-top:10px}
+@media(max-width:640px){.final-card img{height:auto}}
 </style>
 </head>
 <body>
@@ -64,7 +68,7 @@ let images={
 localStorage.removeItem("testState");
 let state=fresh();
 
-function fresh(){return{id:"P-"+Date.now().toString().slice(-8),created:new Date().toISOString(),stage:"intro",profile:{},order:shuffle(IDS),index:0,answers:{},comparison:{},associations:{}}}
+function fresh(){return{id:"P-"+Date.now().toString().slice(-8),created:new Date().toISOString(),stage:"intro",profile:{},order:[...IDS],index:0,answers:{},comparison:{},associations:{}}}
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function save(){localStorage.setItem("testState",JSON.stringify(state))}
 function esc(s=""){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -127,7 +131,7 @@ function semantic(){
 }
 function q(name,label,no=false){let opts=[...(no?["Não"]:[]),...IDS.map(x=>"Interface "+x)];return `<div class="field"><label class="legend">${label}</label><div class="options">${opts.map(v=>`<label class="option"><input type="radio" name="${name}" value="${v}"> ${v}</label>`).join("")}</div></div>`}
 function compare(){
- app.innerHTML=`${progress(5)}<h2>Comparação</h2><div class="grid4">${IDS.map(id=>`<div class="choice-card"><img src="${images[id]}" alt="Interface ${id}"><strong>Interface ${id}</strong></div>`).join("")}</div>
+ app.innerHTML=`${progress(5)}<h2>Comparação</h2><div class="grid4">${state.order.map(id=>`<div class="choice-card"><img src="${images[id]}" alt="Interface ${id}"><strong>Interface ${id}</strong></div>`).join("")}</div>
  ${q("daily","Qual dessas interfaces você esperaria encontrar em um sistema utilizado diariamente por uma instituição de ensino?")}
  ${q("multi","Qual parece mais adequada para ser utilizada por diferentes instituições de ensino?")}
  ${q("strange","Alguma dessas interfaces causa estranheza?",true)}
@@ -140,32 +144,61 @@ function compare(){
 function colors(){
  let fs=["Ação principal","Navegação","Informação","Sucesso","Atenção / alerta","Erro","Elemento de destaque","Elemento decorativo","Não associo a nenhuma função","Outro"];
  app.innerHTML=`${progress(6)}<h2>Associação das cores</h2><p>Que função você esperaria que cada cor tivesse dentro de um sistema?</p><p class="small">Você pode selecionar mais de uma opção para cada cor, até o máximo de 3.</p>
- ${IDS.map(id=>`<div class="field"><div class="swatch" style="background:${config.colors[id]}"></div><label class="legend">Cor ${id}</label><div class="options">${fs.map(v=>`<label class="option"><input type="checkbox" name="c${id}" value="${v}"> ${v}</label>`).join("")}</div><input id="other${id}" type="text" placeholder="Outra associação" style="display:none;margin-top:10px"></div>`).join("")}
+ ${state.order.map(id=>`<div class="field"><div class="swatch" style="background:${config.colors[id]}"></div><label class="legend">Cor ${id}</label><div class="options">${fs.map(v=>`<label class="option"><input type="checkbox" name="c${id}" value="${v}"> ${v}</label>`).join("")}</div><input id="other${id}" type="text" placeholder="Outra associação" style="display:none;margin-top:10px"></div>`).join("")}
  <div id="msg"></div><div class="actions"><button id="finish">Finalizar</button></div>`;
- IDS.forEach(id=>document.querySelectorAll(`[name=c${id}]`).forEach(x=>x.onchange=()=>{
+ state.order.forEach(id=>document.querySelectorAll(`[name=c${id}]`).forEach(x=>x.onchange=()=>{
    const checked=[...document.querySelectorAll(`[name=c${id}]:checked`)];
    if(checked.length>3){x.checked=false;document.getElementById("msg").innerHTML='<div class="notice">Selecione no máximo 3 opções para cada cor.</div>';}
    else document.getElementById("msg").innerHTML="";
    const outro=[...document.querySelectorAll(`[name=c${id}]:checked`)].some(el=>el.value==="Outro");
    document.getElementById("other"+id).style.display=outro?"block":"none";
  }));
- document.getElementById("finish").onclick=()=>{let ok=true;IDS.forEach(id=>{
+ document.getElementById("finish").onclick=()=>{let ok=true;state.order.forEach(id=>{
    let xs=[...document.querySelectorAll(`[name=c${id}]:checked`)];
    if(!xs.length||xs.length>3){ok=false;return}
    state.associations[id]=xs.map(x=>x.value==="Outro"?(document.getElementById("other"+id).value.trim()||"Outro"):x.value);
  });if(!ok){document.getElementById("msg").innerHTML='<div class="notice">Selecione de 1 a 3 associações para cada cor.</div>';return}state.stage="finalReflection";render()}
 }
 function finalReflection(){
- app.innerHTML=`${progress(6)}<h2>Uma última pergunta</h2>
- <div class="field"><label class="legend">Pensando apenas nas cores que você viu, alguma delas parece inadequada ou estranha para ser utilizada como cor principal de interação em um sistema?</label>
- <div class="options">${["Interface A","Interface B","Interface C","Interface D","Nenhuma"].map(v=>`<label class="option"><input type="radio" name="finalStrange" value="${v}"> ${v}</label>`).join("")}</div></div>
- <div class="field"><label class="legend" for="finalWhy">Por quê?</label><textarea id="finalWhy" placeholder="Conte brevemente o que levou você a essa percepção."></textarea></div>
- <div id="msg"></div><div class="actions"><button id="complete">Concluir teste</button></div>`;
+ const cards=state.order.map(id=>`
+   <label class="choice-card final-card" style="cursor:pointer">
+     <img src="${images[id]}" alt="Interface ${id}">
+     <span class="final-choice">
+       <input type="radio" name="finalStrange" value="Interface ${id}">
+       <strong>Interface ${id}</strong>
+     </span>
+   </label>`).join("");
+
+ app.innerHTML=`${progress(6)}
+ <h2>Uma última pergunta</h2>
+ <div class="field">
+   <label class="legend">Pensando apenas nas cores que você viu, alguma delas parece inadequada ou estranha para ser utilizada como cor principal de interação em um sistema?</label>
+   <p class="small">As interfaces abaixo estão na mesma ordem em que foram apresentadas no teste.</p>
+   <div class="grid4 final-grid">${cards}</div>
+   <div class="options" style="margin-top:18px">
+     <label class="option"><input type="radio" name="finalStrange" value="Nenhuma"> Nenhuma</label>
+   </div>
+ </div>
+ <div class="field">
+   <label class="legend" for="finalWhy">Por quê?</label>
+   <textarea id="finalWhy" placeholder="Conte brevemente o que levou você a essa percepção."></textarea>
+ </div>
+ <div id="msg"></div>
+ <div class="actions"><button id="complete">Concluir teste</button></div>`;
+
  document.getElementById("complete").onclick=()=>{
-  const choice=document.querySelector('[name=finalStrange]:checked');
-  if(!choice){document.getElementById("msg").innerHTML='<div class="notice">Selecione uma opção para continuar.</div>';return}
-  state.finalColorPerception={choice:choice.value,why:document.getElementById("finalWhy").value.trim()};
-  state.completed=new Date().toISOString();state.stage="done";render();
+   const choice=document.querySelector('[name=finalStrange]:checked');
+   if(!choice){
+     document.getElementById("msg").innerHTML='<div class="notice">Selecione uma opção para continuar.</div>';
+     return;
+   }
+   state.finalColorPerception={
+     choice:choice.value,
+     why:document.getElementById("finalWhy").value.trim()
+   };
+   state.completed=new Date().toISOString();
+   state.stage="done";
+   render();
  };
 }
 function done(){
@@ -176,10 +209,10 @@ function done(){
  document.getElementById("cfg").onclick=()=>{state.stage="config";render()}
 }
 function resultLines(){
- let lines=[["TESTE DE PERCEPÇÃO DE INTERFACE",""],["Resultado individual",""],["ID",state.id],["Data",new Date(state.completed||Date.now()).toLocaleString("pt-BR")],["Perfil",state.profile.role],["Ordem apresentada",state.order.join(" → ")]];
- IDS.forEach(id=>{let a=state.answers[id]||{},s=a.scales||{};lines.push(["",""],["INTERFACE "+id,""],["Primeira impressão",a.first||"—"]);SCALES.forEach(([l,r,k])=>lines.push([l+" / "+r,String(s[k]??"—")]))});
+ let lines=[["TESTE DE PERCEPÇÃO DE INTERFACE",""],["Ordem apresentada","Interface A → Interface B → Interface C → Interface D"],["Mapa das interfaces","A = #F5B800 | B = #2F557F | C = #3E8391 | D = #003366"],["Resultado individual",""],["ID",state.id],["Data",new Date(state.completed||Date.now()).toLocaleString("pt-BR")],["Perfil",state.profile.role],["Ordem apresentada",state.order.join(" → ")]];
+ state.order.forEach(id=>{let a=state.answers[id]||{},s=a.scales||{};lines.push(["",""],["INTERFACE "+id,""],["Primeira impressão",a.first||"—"]);SCALES.forEach(([l,r,k])=>lines.push([l+" / "+r,String(s[k]??"—")]))});
  lines.push(["",""],["COMPARAÇÃO FINAL",""],["Esperada no uso diário",state.comparison.daily],["Adequada a diferentes instituições",state.comparison.multi],["Estranheza",state.comparison.strange],["Motivo",state.comparison.why||"—"],["Elemento fora de lugar",state.comparison.out||"—"],["",""],["ASSOCIAÇÃO DAS CORES",""]);
- IDS.forEach(id=>lines.push([`Cor ${id} (${config.colors[id]})`,(Array.isArray(state.associations[id])?state.associations[id].join(", "):(state.associations[id]||"—"))]));
+ state.order.forEach(id=>lines.push([`Cor ${id} (${config.colors[id]})`,(Array.isArray(state.associations[id])?state.associations[id].join(", "):(state.associations[id]||"—"))]));
  lines.push(["",""],["PERCEPÇÃO FINAL DAS CORES",""],["Cor considerada inadequada ou estranha",state.finalColorPerception?.choice||"—"],["Por quê?",state.finalColorPerception?.why||"—"]);
  return lines
 }

@@ -222,13 +222,13 @@ function saveJSON(){dl(new Blob([JSON.stringify({...state,configuration:{colors:
 function wrap(ctx,text,maxWidth){let words=String(text).split(/\s+/),lines=[],line="";for(let w of words){let t=line?line+" "+w:w;if(ctx.measureText(t).width>maxWidth&&line){lines.push(line);line=w}else line=t}if(line)lines.push(line);return lines}
 function savePNG(){
  // Canvas puro: mais confiável para arquivo HTML local e não depende de biblioteca externa.
- let rows=resultLines(), W=1400, pad=80, labelW=420, ctx=document.createElement("canvas").getContext("2d");
+ let rows=resultLines(), W=1400, pad=80, labelW=520, ctx=document.createElement("canvas").getContext("2d");
  ctx.font="28px Arial";let total=pad;
- rows.forEach(([a,b])=>{let arr=wrap(ctx,b||a,W-pad*2-(b?labelW:0));total+=Math.max(54,arr.length*38+18)});
+ rows.forEach(([a,b])=>{let labelLines=wrap(ctx,a,labelW), valueLines=wrap(ctx,b,W-pad*2-labelW);total+=b?Math.max(54,Math.max(labelLines.length,valueLines.length)*34+16):Math.max(54,labelLines.length*38+18)});
  total+=pad;let c=ctx.canvas;c.width=W;c.height=total;ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,W,total);ctx.fillStyle="#111";let y=pad;
  rows.forEach(([a,b],idx)=>{let heading=!b&&(a===a.toUpperCase()||idx<2);ctx.font=(heading?"bold 30px":"bold 23px")+" Arial";ctx.fillStyle="#111";
-   if(b){ctx.fillText(a,pad,y+30);ctx.font="23px Arial";let ls=wrap(ctx,b,W-pad*2-labelW);ls.forEach((t,i)=>ctx.fillText(t,pad+labelW,y+30+i*34));y+=Math.max(54,ls.length*34+16)}
-   else if(a){ctx.fillText(a,pad,y+30);y+=58}else y+=28;
+   if(b){let labelLines=wrap(ctx,a,labelW),valueLines=wrap(ctx,b,W-pad*2-labelW);labelLines.forEach((t,i)=>ctx.fillText(t,pad,y+30+i*34));ctx.font="23px Arial";valueLines.forEach((t,i)=>ctx.fillText(t,pad+labelW,y+30+i*34));y+=Math.max(54,Math.max(labelLines.length,valueLines.length)*34+16)}
+   else if(a){ctx.fillText(a,pad,y+30);y+=Math.max(58,wrap(ctx,a,W-pad*2).length*38+18)}else y+=28;
    ctx.strokeStyle="#e4e4e4";ctx.beginPath();ctx.moveTo(pad,y-5);ctx.lineTo(W-pad,y-5);ctx.stroke();
  });
  c.toBlob(blob=>blob?dl(blob,base()+".png"):alert("Não foi possível gerar a imagem."),"image/png");
